@@ -62,6 +62,64 @@ let options = GenerateOptions(
 let text = try await client.generateText(prompt: "Hello!", options: options)
 ```
 
+## Prompt Management
+
+`PromptStore` lets you define prompts on the server in your MAIG dashboard and deliver them to your app without a new release. At app launch, call `sync()` once to pull any changed prompts into a local cache. Every subsequent call to `getPrompt(named:)` reads directly from that cache — no network call at inference time.
+
+Prompts are defined and managed at [docs.maig.dev/prompt-management](https://docs.maig.dev/prompt-management).
+
+### Initialization
+
+```swift
+let store = PromptStore(apiKey: "maig_your_key")
+```
+
+### Sync at launch
+
+Call `sync()` once when your app starts. The `.task {}` modifier on your root `App` view is a natural place:
+
+```swift
+@main
+struct MyApp: App {
+    @State private var store = PromptStore(apiKey: "maig_your_key")
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .task {
+                    try? await store.sync()
+                }
+        }
+    }
+}
+```
+
+Only prompts whose content has changed since the last sync are transmitted, so the request is lightweight on subsequent launches.
+
+### Retrieving a prompt
+
+```swift
+// Returns [Message]?, or nil if the prompt hasn't been synced yet
+let messages = store.getPrompt(named: "welcome") ?? []
+```
+
+### Variable substitution
+
+Prompts can contain `{{VARIABLE}}` placeholders defined on the server. Supply values at retrieval time:
+
+```swift
+guard let result = store.getPrompt(named: "support", variables: ["userName": "Alice"]) else {
+    return
+}
+
+// result.messages — [Message] with {{userName}} replaced by "Alice"
+// result.missingVariables — placeholders in the template not supplied in variables
+// result.extraVariables — variable keys that did not correspond to any placeholder
+let messages = result.messages
+```
+
+Use `missingVariables` and `extraVariables` during development to catch template/call-site mismatches early.
+
 ## Error Handling
 
 ```swift
